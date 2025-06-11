@@ -1,82 +1,6 @@
 <?php
 date_default_timezone_set('America/Mexico_City');
 
-// Función para enviar mensajes de WhatsApp
-    function enviarWhatsApp($token, $to, $body) {
-    $params = array(
-        'token' => $token,
-        'to'    => $to,
-        'body'  => $body
-    );
-
-    $ultramsgCurl = curl_init();
-    curl_setopt_array($ultramsgCurl, array(
-        CURLOPT_URL            => "https://api.ultramsg.com/instance112284/messages/chat",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_ENCODING       => "",
-        CURLOPT_MAXREDIRS      => 10,
-        CURLOPT_TIMEOUT        => 30,
-        CURLOPT_SSL_VERIFYHOST => 0,
-        CURLOPT_SSL_VERIFYPEER => 0,
-        CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1,
-        CURLOPT_CUSTOMREQUEST  => "POST",
-        CURLOPT_POSTFIELDS     => http_build_query($params),
-        CURLOPT_HTTPHEADER     => array(
-            "content-type: application/x-www-form-urlencoded"
-        ),
-    ));
-
-    $response = curl_exec($ultramsgCurl);
-    $err      = curl_error($ultramsgCurl);
-    curl_close($ultramsgCurl);
-
-    return [$err, $response];
-}
-
-$sendResult = "";
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['telefono']) && isset($_POST['mensaje'])) {
-    $telefono = trim($_POST['telefono']);
-    $mensaje  = trim($_POST['mensaje']);
-
-    if (!empty($telefono) && !empty($mensaje)) {
-        $params = array(
-            'token' => 'kx9mtxhgwmoycxbm',
-            'to'    => $telefono,
-            'body'  => $mensaje
-        );
-
-        $curl = curl_init();
-        curl_setopt_array($curl, array(
-            CURLOPT_URL => "https://api.ultramsg.com/instance112284/messages/chat",
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_ENCODING => "",
-            CURLOPT_MAXREDIRS => 10,
-            CURLOPT_TIMEOUT => 30,
-            CURLOPT_SSL_VERIFYHOST => 0,
-            CURLOPT_SSL_VERIFYPEER => 0,
-            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-            CURLOPT_CUSTOMREQUEST => "POST",
-            CURLOPT_POSTFIELDS => http_build_query($params),
-            CURLOPT_HTTPHEADER => array(
-                "content-type: application/x-www-form-urlencoded"
-            ),
-        ));
-
-        $response = curl_exec($curl);
-        $err = curl_error($curl);
-
-        curl_close($curl);
-
-        if ($err) {
-            $sendResult = "<div class='error-msg'><i class='fas fa-exclamation-triangle'></i> Error al enviar: $err</div>";
-        } else {
-            $sendResult = "<div class='success-msg'><i class='fas fa-check-circle'></i> Mensaje enviado correctamente a $telefono!</div>";
-        }
-    } else {
-        $sendResult = "<div class='error-msg'><i class='fas fa-phone-slash'></i> Por favor selecciona un arrendatario y escribe un mensaje.</div>";
-    }
-}
-
 // Obtener los contratos para listar arrendatarios y separarlos en dos grupos:
 $tenants_local = [];
 $tenants_trifasico = [];
@@ -140,6 +64,35 @@ if ($result !== false) {
     <title>Enviar Mensaje Individual - Plaza Shopping Center</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .btn-whatsapp {
+            display: inline-block;
+            padding: 10px 15px;
+            margin: 10px 0;
+            background-color: #25D366;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            text-decoration: none;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-whatsapp:hover {
+            background-color: #128C7E;
+        }
+        
+        .btn-whatsapp i {
+            margin-right: 5px;
+        }
+        
+        #whatsappButtonContainer {
+            margin-top: 15px;
+            text-align: center;
+            display: none;
+        }
+    </style>
 </head>
 <body>
     <?php include 'sidebar.php'; ?>
@@ -147,9 +100,8 @@ if ($result !== false) {
         <div class="header">
             <h1><i class="fas fa-user"></i> Enviar Mensaje Individual</h1>
         </div>
-        <?php if (!empty($sendResult)) { echo $sendResult; } ?>
         <div class="form-container">
-            <form action="mensajes.php" method="post">
+            <form id="messageForm">
                 <!-- Checklist para seleccionar tipo -->
                 <div style="margin-bottom: 15px;">
                     <label>Selecciona el TIPO:</label><br>
@@ -174,12 +126,13 @@ if ($result !== false) {
                 <!-- Select para locales (excluye trifacicos) -->
                 <div id="local_container" style="display:none;">
                     <label for="tenant_local">Selecciona un arrendatario (Local):</label>
-                    <select name="telefono" id="tenant_local">
+                    <select name="telefono" id="tenant_local" class="tenant-select">
                         <option value="">-- Seleccione un arrendatario --</option>
                         <?php foreach ($tenants_local as $tenant): ?>
                             <option 
                                 value="<?php echo htmlspecialchars($tenant['telefono']); ?>"
                                 data-local="<?php echo htmlspecialchars($tenant['local_number']); ?>"
+                                data-refcustomer="<?php echo htmlspecialchars($tenant['ref_customer']); ?>"
                             >
                                 <?php echo htmlspecialchars($tenant['ref_customer'] . " (" . $tenant['ref'] . ")"); ?>
                             </option>
@@ -190,12 +143,13 @@ if ($result !== false) {
                 <!-- Select para trifacicos -->
                 <div id="trifacico_container" style="display:none;">
                     <label for="tenant_trifacico">Selecciona un arrendatario (Trifacico):</label>
-                    <select name="telefono" id="tenant_trifacico">
+                    <select name="telefono" id="tenant_trifacico" class="tenant-select">
                         <option value="">-- Seleccione un arrendatario --</option>
                         <?php foreach ($tenants_trifasico as $tenant): ?>
                             <option 
                                 value="<?php echo htmlspecialchars($tenant['telefono']); ?>"
                                 data-local="<?php echo htmlspecialchars($tenant['local_number']); ?>"
+                                data-refcustomer="<?php echo htmlspecialchars($tenant['ref_customer']); ?>"
                             >
                                 <?php echo htmlspecialchars($tenant['ref_customer'] . " (" . $tenant['ref'] . ")"); ?>
                             </option>
@@ -203,10 +157,11 @@ if ($result !== false) {
                     </select>
                 </div>
                 
-                <label for="mensaje"><strong>Escribe el mensaje:</strong></label>
-                <textarea name="mensaje" id="mensaje" placeholder="Escribe aquí tu mensaje..."></textarea>
-                
-                <button type="submit">Enviar Mensaje</button>
+                <div id="whatsappButtonContainer" style="margin-top: 20px; text-align: center; display: none;">
+                    <a href="#" id="whatsappButton" class="btn-whatsapp" target="_blank">
+                        <i class="fab fa-whatsapp"></i> Abrir Chat de WhatsApp
+                    </a>
+                </div>
             </form>
         </div>
     </div>
@@ -219,6 +174,39 @@ if ($result !== false) {
     const trifacicoContainer = document.getElementById('trifacico_container');
     const tenantLocal = document.getElementById('tenant_local');
     const tenantTrifacico = document.getElementById('tenant_trifacico');
+    const whatsappButton = document.getElementById('whatsappButton');
+    const whatsappButtonContainer = document.getElementById('whatsappButtonContainer');
+    
+    // Función para actualizar el enlace de WhatsApp
+    function updateWhatsAppLink() {
+        let selectedOption;
+        let telefono = '';
+        let refCustomer = '';
+        
+        if (localContainer.style.display !== 'none' && tenantLocal.selectedIndex > 0) {
+            selectedOption = tenantLocal.options[tenantLocal.selectedIndex];
+            telefono = selectedOption.value;
+            refCustomer = selectedOption.getAttribute('data-refcustomer');
+        } else if (trifacicoContainer.style.display !== 'none' && tenantTrifacico.selectedIndex > 0) {
+            selectedOption = tenantTrifacico.options[tenantTrifacico.selectedIndex];
+            telefono = selectedOption.value;
+            refCustomer = selectedOption.getAttribute('data-refcustomer');
+        }
+        
+        if (telefono) {
+            // Limpiar el número de teléfono (eliminar espacios, paréntesis, guiones, etc.)
+            let telefonoLimpio = telefono.replace(/[\s\(\)\-\+]/g, '');
+            
+            // Crear mensaje predeterminado
+            let mensajePredeterminado = `Estimado arrendatario del ${refCustomer}, sus datos indican que necesitamos comunicarnos con usted.`;
+            
+            // Actualizar el enlace
+            whatsappButton.href = `https://wa.me/${telefonoLimpio}?text=${encodeURIComponent(mensajePredeterminado)}`;
+            whatsappButtonContainer.style.display = 'block';
+        } else {
+            whatsappButtonContainer.style.display = 'none';
+        }
+    }
     
     // Al cambiar el radio, mostrar el select correspondiente y deshabilitar el otro
     for (let radio of filtroRadios) {
@@ -234,8 +222,13 @@ if ($result !== false) {
                 localContainer.style.display = 'none';
                 tenantLocal.disabled = true;
             }
+            updateWhatsAppLink();
         });
     }
+    
+    // Actualizar el enlace cuando cambie la selección
+    tenantLocal.addEventListener('change', updateWhatsAppLink);
+    tenantTrifacico.addEventListener('change', updateWhatsAppLink);
     
     // Funcionalidad de búsqueda: aplica al select visible
     document.getElementById('btnSearchLocal').addEventListener('click', function() {
@@ -261,6 +254,7 @@ if ($result !== false) {
             if (localNum === searchValue) {
                 visibleSelect.selectedIndex = i;
                 found = true;
+                updateWhatsAppLink();
                 break;
             }
         }
@@ -268,6 +262,11 @@ if ($result !== false) {
         if (!found) {
             alert('No se encontró el local o trifacico con ese número.');
         }
+    });
+    
+    // Prevenir envío del formulario
+    document.getElementById('messageForm').addEventListener('submit', function(event) {
+        event.preventDefault();
     });
     </script>
 </body>
