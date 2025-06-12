@@ -101,6 +101,10 @@ foreach ($contracts as $data) {
         <h2>Locales Irregulares</h2>
         <p id="totalIrregulares"><?php echo $totalIrregulares; ?></p>
       </div>
+      <div class="info-box">
+        <h2>Total Locales (Regulares + Irregulares)</h2>
+        <p id="totalSuma"><?php echo $totalRegulares + $totalIrregulares; ?></p>
+      </div>
     </div>
 
     <!-- Gráficos -->
